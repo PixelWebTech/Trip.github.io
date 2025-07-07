@@ -1,0 +1,333 @@
+!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Planificateur de Voyage</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #f0f4f8;
+            margin: 0;
+            padding: 2rem;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .add-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: #fff;
+            padding: 1rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .add-form input,
+        .add-form select,
+        .add-form button {
+            padding: 0.5rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            outline: none;
+        }
+
+        .add-form button {
+            background: #0066cc;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .add-form button:hover {
+            background: #004c99;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1.2rem;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
+        }
+
+        .card.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .badge {
+            display: inline-block;
+            background: #eee;
+            padding: 0.3rem 0.6rem;
+            border-radius: 20px;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .card h2 {
+            margin: 0.2rem 0;
+            font-size: 1.2rem;
+            color: #222;
+        }
+
+        .address,
+        .time-of-day {
+            margin: 0.2rem 0;
+        }
+
+        .edit,
+        .delete {
+            margin-top: 0.8rem;
+            margin-right: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            font-size: 0.9rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .edit {
+            background: #ffc107;
+            color: #222;
+        }
+
+        .edit:hover {
+            background: #e0a800;
+        }
+
+        .delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .delete:hover {
+            background: #c82333;
+        }
+
+        @media (max-width: 600px) {
+            .add-form {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card.dragging {
+            opacity: 0.5;
+            border: 2px dashed #888;
+        }
+
+         .card.done {
+            opacity: 0.6;
+            filter: grayscale(0.4);
+            text-decoration: line-through;
+        }
+
+        .card.done h2,
+        .card.done .address,
+        .card.done .time-of-day {
+            color: gray;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>🌍 Planificateur de Voyage</h1>
+
+    <form class="add-form" onsubmit="addCard(event)">
+        <input type="text" id="city" placeholder="Ville" required />
+        <input type="date" id="date" required />
+        <input type="text" id="address" placeholder="Adresse ou activité..." required />
+        <input type="text" id="airport" placeholder="Aéroport" />
+        <input type="time" id="flightTime" />
+        <select id="badge">
+            <option value="🎭 Culture">🎭 Culture</option>
+            <option value="🏖️ Plage">🏖️ Plage</option>
+            <option value="🏜️ Désert">🏜️ Désert</option>
+            <option value="🧗 Aventure">🧗 Aventure</option>
+            <option value="🏨 Hôtel">🏨 Hôtel</option>
+        </select>
+        <label><input type="radio" name="time" value="Matin" checked /> Matin</label>
+        <label><input type="radio" name="time" value="Après-midi" /> Après-midi</label>
+        <button type="submit">Ajouter</button>
+    </form>
+    <label style="display: block; margin: 1em 0;">
+        <input type="checkbox" id="sortByDate" onchange="toggleSort()" />
+        Trier par date
+    </label>
+    <div id="cards-container"></div>
+
+    <div id="cards-container"></div>
+
+    <script>
+        const container = document.getElementById('cards-container');
+        const sortCheckbox = document.getElementById('sortByDate');
+        let data = JSON.parse(localStorage.getItem('travelData')) || [];
+        let sortByDate = JSON.parse(localStorage.getItem('sortByDate')) || false;
+        sortCheckbox.checked = sortByDate;
+
+        function saveData() {
+            localStorage.setItem('travelData', JSON.stringify(data));
+        }
+
+        function saveSortPreference() {
+            localStorage.setItem('sortByDate', JSON.stringify(sortByDate));
+        }
+
+        function toggleSort() {
+            sortByDate = sortCheckbox.checked;
+            saveSortPreference();
+            renderCards();
+        }
+
+        function toggleDone(index) {
+            data[index].done = !data[index].done;
+            saveData();
+            renderCards();
+        }
+
+
+
+        function renderCards() {
+            container.innerHTML = '';
+
+            let steps = [...data];
+            if (sortByDate) {
+                steps.sort((a, b) => new Date(a.date) - new Date(b.date));
+            }
+
+            steps.forEach((step, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.setAttribute('draggable', 'true');
+                card.setAttribute('data-index', index);
+                if (step.done) card.classList.add('done');
+
+                card.innerHTML = `
+                    <div class="badge">${step.badge}</div>
+                    <h2>${step.date} — ${step.city}</h2>
+                    <div class="address">📍 ${step.address}</div>
+                    <div class="time-of-day">🕘 ${step.timeOfDay}</div>
+                    ${step.airport ? `<div class="address">🛫 ${step.airport}</div>` : ''}
+                    ${step.flightTime ? `<div class="address">🕓 Vol à ${step.flightTime}</div>` : ''}
+                    <label><input type="checkbox" onchange="toggleDone(${index})" ${step.done ? 'checked' : ''} /> ✅ Fait</label>
+                    <button class="edit" onclick="editCard(${index})">📝 Modifier</button>
+                    <button class="delete" onclick="deleteCard(${index}, this)">🗑️ Supprimer</button>
+                    `;
+
+                card.addEventListener('dragstart', handleDragStart);
+                card.addEventListener('dragover', handleDragOver);
+                card.addEventListener('drop', handleDrop);
+                card.addEventListener('dragend', handleDragEnd);
+
+                container.appendChild(card);
+                setTimeout(() => card.classList.add('show'), 50);
+            });
+        }
+
+        function handleDragStart(e) {
+            e.dataTransfer.setData('text/plain', e.target.dataset.index);
+            e.target.classList.add('dragging');
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const fromIndex = +e.dataTransfer.getData('text/plain');
+            const toIndex = +e.currentTarget.dataset.index;
+
+            if (fromIndex === toIndex || sortByDate) return;
+
+            const movedItem = data.splice(fromIndex, 1)[0];
+            data.splice(toIndex, 0, movedItem);
+            saveData();
+            renderCards();
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+        }
+
+        function editCard(index) {
+            const step = data[index];
+            const newCity = prompt("Modifier la ville :", step.city);
+            if (newCity === null) return;
+
+            const newDate = prompt("Modifier la date :", step.date);
+            if (newDate === null) return;
+
+            const newAddress = prompt("Modifier l'adresse :", step.address);
+            if (newAddress === null) return;
+
+            const newBadge = prompt("Modifier le badge :", step.badge);
+            if (newBadge === null) return;
+
+            const newTime = prompt("Matin ou Après-midi ?", step.timeOfDay);
+            if (newTime === null) return;
+
+            const newAirport = prompt("Modifier l'aéroport :", step.airport || "");
+            if (newAirport === null) return;
+
+            const newFlightTime = prompt("Modifier l'heure de vol (HH:MM) :", step.flightTime || "");
+            if (newFlightTime === null) return;
+
+            data[index] = {
+                city: newCity,
+                date: newDate,
+                address: newAddress,
+                badge: newBadge,
+                timeOfDay: newTime,
+                airport: newAirport,
+                flightTime: newFlightTime
+            };
+            saveData();
+            renderCards();
+        }
+
+        function deleteCard(index, btn) {
+            const card = btn.closest('.card');
+            card.classList.remove('show');
+            setTimeout(() => {
+                data.splice(index, 1);
+                saveData();
+                renderCards();
+            }, 400);
+        }
+
+        function addCard(e) {
+            e.preventDefault();
+            const city = document.getElementById('city').value;
+            const date = document.getElementById('date').value;
+            const address = document.getElementById('address').value;
+            const badge = document.getElementById('badge').value;
+            const time = document.querySelector('input[name="time"]:checked').value;
+            const airport = document.getElementById('airport').value;
+            const flightTime = document.getElementById('flightTime').value;
+
+            data.push({ city, date, address, badge, timeOfDay: time, airport, flightTime });
+            saveData();
+            renderCards();
+            e.target.reset();
+        }
+
+        renderCards();
+    </script>
+
+
+</body>
+
+</html>
